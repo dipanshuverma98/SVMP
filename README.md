@@ -1,1 +1,1 @@
-# SVMP
+Student Virtual Mentorship Programme
