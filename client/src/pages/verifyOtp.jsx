@@ -9,16 +9,20 @@ const VerifyOtp = () => {
 
   const email = location.state?.email;
 
+  if (!email) {
+    return <p>Please login again.</p>;
+  }
+
   const handleVerify = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const data = await verifyOtp(email, otp);
+      const data = await verifyOtp(email, otp.trim());
       alert("Login successful!");
       console.log("JWT:", data.token);
     } catch (err) {
-      alert("Invalid OTP");
+      alert(err.response?.data?.message || "Invalid OTP");
     } finally {
       setLoading(false);
     }

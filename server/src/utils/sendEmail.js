@@ -4,15 +4,20 @@ const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS, // Gmail App Password
   },
 });
 
-exports.sendOtpEmail = async (email, otp) => {
+const sendOtpEmail = async (email, otp) => {
   await transporter.sendMail({
     from: `"SVMP" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "Your SVMP Login OTP",
-    html: `<h2>Your OTP is: ${otp}</h2><p>Valid for 5 minutes.</p>`,
+    html: `
+      <h2>Your OTP: ${otp}</h2>
+      <p>Valid for 5 minutes.</p>
+    `,
   });
 };
+
+module.exports = { sendOtpEmail };
