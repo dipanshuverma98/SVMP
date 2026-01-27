@@ -1,0 +1,80 @@
+import { useState } from "react";
+import { useLocation } from "react-router-dom";
+import { verifyOtp } from "../services/authService";
+
+const VerifyOtp = () => {
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const location = useLocation();
+
+  const email = location.state?.email;
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const data = await verifyOtp(email, otp);
+      alert("Login successful!");
+      console.log("JWT:", data.token);
+    } catch (err) {
+      alert("Invalid OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={styles.container}>
+      <form onSubmit={handleVerify} style={styles.card}>
+        <h2>Verify OTP</h2>
+        <p>{email}</p>
+
+        <input
+          type="text"
+          placeholder="Enter OTP"
+          value={otp}
+          required
+          onChange={(e) => setOtp(e.target.value)}
+          style={styles.input}
+        />
+
+        <button type="submit" style={styles.button} disabled={loading}>
+          {loading ? "Verifying..." : "Verify OTP"}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+const styles = {
+  container: {
+    height: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "#f4f6f8",
+  },
+  card: {
+    background: "#fff",
+    padding: "2rem",
+    borderRadius: "8px",
+    width: "320px",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+  },
+  input: {
+    width: "100%",
+    padding: "10px",
+    margin: "1rem 0",
+  },
+  button: {
+    width: "100%",
+    padding: "10px",
+    background: "#16a34a",
+    color: "#fff",
+    border: "none",
+    cursor: "pointer",
+  },
+};
+
+export default VerifyOtp;
