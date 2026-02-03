@@ -1,38 +1,34 @@
-const { Server } = require("socket.io");
-const jwt = require("jsonwebtoken");
+const Message = require("../models/Message");
 
-let io;
-
-const initSocket = (server) => {
-  io = new Server(server, {
-    cors: {
-      origin: "*",
-    },
-  });
-
+module.exports = (io) => {
   io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error("Authentication error"));
+
     try {
-      const token = socket.handshake.auth.token;
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.user = decoded;
       next();
-    } catch (err) {
-      next(new Error("Authentication error"));
+    } catch {
+      next(new Error("Invalid token"));
     }
   });
 
   io.on("connection", (socket) => {
-    console.log(`User connected: ${socket.user.id}`);
+    socket.join(socket.user.userId);
 
-    socket.join(`user:${socket.user.id}`);
-    socket.join(`role:${socket.user.role}`);
+    socket.on("send_message", async ({ toUserId, message }) => {
+      const savedMessage = await Message.create({
+        sender: socket.user.userId,
+        receiver: toUserId,
+        message,
+      });
 
-    require("./chat.socket")(socket, io);
-
-    socket.on("disconnect", () => {
-      console.log(`User disconnected: ${socket.user.id}`);
+      io.to(toUserId).emit("receive_message", {
+        from: socket.user.userId,
+        message: savedMessage.message,
+        time: savedMessage.createdAt,
+      });
     });
   });
 };
-
-module.exports = { initSocket };

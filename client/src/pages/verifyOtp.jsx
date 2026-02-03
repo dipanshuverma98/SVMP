@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { verifyOtp } from "../services/authService";
+import { useAuth } from "../context/AuthContext";
 
 const VerifyOtp = () => {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+
   const location = useLocation();
+  const navigate = useNavigate();
+  const { login } = useAuth(); // ✅ hook INSIDE component
 
   const email = location.state?.email;
 
@@ -19,8 +23,18 @@ const VerifyOtp = () => {
 
     try {
       const data = await verifyOtp(email, otp.trim());
-      alert("Login successful!");
-      console.log("JWT:", data.token);
+
+      // ✅ let AuthContext handle token storage
+      login(data.token);
+
+      // ✅ role-based redirect
+      if (data.role === "mentor") {
+        navigate("/mentor");
+      } else if (data.role === "mentee") {
+        navigate("/mentee");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       alert(err.response?.data?.message || "Invalid OTP");
     } finally {

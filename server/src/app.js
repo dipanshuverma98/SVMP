@@ -15,5 +15,9 @@ app.get("/", (req, res) => {
 });
 const testRoutes = require("./routes/testRoutes");
 app.use("/api/test", testRoutes);
+const protectedRoutes = require("./routes/protectedRoutes");
+app.use("/api/protected", protectedRoutes);
+app.use("/api/mentor", require("./routes/mentorRoutes"));
+app.use("/api/chat", require("./routes/chatRoutes"));
 
 module.exports = app;
