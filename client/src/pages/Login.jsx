@@ -1,76 +1,65 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { sendOtp } from "../services/authService";
 
-const Login = () => {
+export default function Login() {
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
-      await sendOtp(email);
-      navigate("/verify-otp", { state: { email } });
-    } catch (err) {
-      alert("Failed to send OTP");
-    } finally {
-      setLoading(false);
+      // 1. Actually call your backend
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // 2. Save the REAL data from the server
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("userRole", data.role);
+        localStorage.setItem("userId", data.userId); // This is critical!
+
+        // 3. Redirect based on the real role from DB
+        if (data.role === "mentor") {
+          navigate("/mentor-dashboard");
+        } else {
+          navigate("/mentee-dashboard");
+        }
+      } else {
+        alert(data.message || "Invalid Email or Password");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("Server is not responding. Make sure your backend is running.");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <form onSubmit={handleSubmit} style={styles.card}>
-        <h2>SVMP Login</h2>
-
-        <input
-          type="email"
-          placeholder="Enter your email"
-          required
+    <div style={{ padding: "40px" }}>
+      <h2>Login</h2>
+      <form onSubmit={handleLogin}>
+        <input 
+          type="email" 
+          placeholder="Email" 
+          required 
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={styles.input}
-        />
-
-        <button type="submit" style={styles.button} disabled={loading}>
-          {loading ? "Sending OTP..." : "Send OTP"}
-        </button>
+          onChange={(e) => setEmail(e.target.value)} 
+        /><br/><br/>
+        <input 
+          type="password" 
+          placeholder="Password" 
+          required 
+          value={password}
+          onChange={(e) => setPassword(e.target.value)} 
+        /><br/><br/>
+        <button type="submit">Login</button>
       </form>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    height: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#f4f6f8",
-  },
-  card: {
-    background: "#fff",
-    padding: "2rem",
-    borderRadius: "8px",
-    width: "320px",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-  },
-  input: {
-    width: "100%",
-    padding: "10px",
-    margin: "1rem 0",
-  },
-  button: {
-    width: "100%",
-    padding: "10px",
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
-    cursor: "pointer",
-  },
-};
-
-export default Login;
+}
