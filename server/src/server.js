@@ -1,267 +1,171 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
-const cors = require("cors");
-const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 
+// Import Models
 const User = require("./models/User");
-const { Group, Resource } = require("./models/Group");
+const { Group } = require("./models/Group");
+const Chat = require("./models/Chat"); // Ensure this file exists in models/
 
 const app = express();
-const server = http.createServer(app);
+app.use(cors());
+app.use(express.json());
 
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
   },
 });
 
-app.use(cors());
-app.use(bodyParser.json());
+/* ------------------- MONGODB CONNECTION ------------------- */
+mongoose
+  .connect("mongodb://127.0.0.1:27017/mentorship")
+  .then(() => console.log("✅ Connected to MongoDB (mentorship)"))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-/* ------------------- MongoDB Connection ------------------- */
+/* ------------------- AUTH ROUTES (Signup/Login) ------------------- */
 
-mongoose.connect("mongodb://127.0.0.1:27017/mentorship");
-
-mongoose.connection.once("open", () => {
-  console.log("MongoDB connected");
-});
-
-/* ------------------- OTP Store ------------------- */
-
-let otpStore = {};
-
-/* ------------------- Email Transporter ------------------- */
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "muke45556@gmail.com",
-    pass: "kkmc hbpp noyo ogfj",
-  },
-});
-
-/* ------------------- SEND OTP ------------------- */
-
-app.post("/send-otp", async (req, res) => {
-  const { email } = req.body;
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore[email] = otp;
-
-  const mailOptions = {
-    from: "muke45556@gmail.com",
-    to: email,
-    subject: "Your Verification Code",
-    text: `Your OTP is ${otp}`,
-  };
-
+app.post("/api/auth/signup", async (req, res) => {
   try {
-    await transporter.sendMail(mailOptions);
-    res.json({ message: "OTP sent successfully!" });
-  } catch (error) {
-    res.status(500).json({ error: "Email failed" });
-  }
-});
-
-/* ------------------- VERIFY OTP ------------------- */
-
-app.post("/verify-otp", (req, res) => {
-  const { email, otp } = req.body;
-
-  if (otpStore[email] === otp) {
-    delete otpStore[email];
-    res.json({ success: true, message: "OTP verified" });
-  } else {
-    res.status(400).json({ success: false, message: "Invalid OTP" });
-  }
-});
-
-/* ------------------- REGISTER USER ------------------- */
-
-app.post("/api/auth/register", async (req, res) => {
-  const { email, password, role } = req.body;
-
-  try {
-    const existingUser = await User.findOne({ email });
-
-    if (existingUser) {
-      return res.status(400).json({ error: "User already exists" });
-    }
-
-    const newUser = new User({
-      email,
-      password,
-      role,
-    });
-
+    const { name, email, password, role } = req.body;
+    const newUser = new User({ name, email, password, role: role.toUpperCase() });
     await newUser.save();
-
-    res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-    });
-
+    res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
     res.status(500).json({ error: "Registration failed" });
   }
 });
 
-/* ------------------- LOGIN USER ------------------- */
-
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
-
   try {
     const user = await User.findOne({ email, password });
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid credentials",
-      });
-    }
-
-    res.json({
-      success: true,
-      role: user.role,
-      userId: user._id,
-      message: "Login successful",
-    });
-
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
+    res.json({ user });
   } catch (error) {
     res.status(500).json({ error: "Login error" });
   }
 });
 
-/* ------------------- CREATE GROUP ------------------- */
+/* ------------------- GROUP & RESOURCE ROUTES ------------------- */
 
-// Route: Mentor creates a group
+// Mentor: Create Group
 app.post("/api/mentor/create-group", async (req, res) => {
   const { name, mentorId } = req.body;
   try {
-    const newGroup = new Group({
-      name,
-      mentor: mentorId,
-      mentees: [], // Starts empty
-      resources: []
-    });
+    const newGroup = new Group({ name, mentor: mentorId });
     await newGroup.save();
     res.status(201).json(newGroup);
   } catch (error) {
     res.status(500).json({ error: "Could not create group" });
   }
 });
-/* ------------------- GET GROUPS OF A MENTOR ------------------- */
 
+// Mentor: Fetch his groups
 app.get("/api/mentor/groups/:mentorId", async (req, res) => {
   try {
-    const { mentorId } = req.params;
-    console.log("Searching for groups belonging to Mentor ID:", mentorId);
-
-    const groups = await Group.find({ mentor: mentorId });
-    
-    console.log("Groups found in DB:", groups.length);
+    const groups = await Group.find({ mentor: req.params.mentorId });
     res.json(groups);
   } catch (error) {
-    console.error("Fetch Error:", error);
-    res.status(500).json({ error: "Failed to fetch groups" });
+    res.status(500).json({ error: "Fetch failed" });
   }
 });
 
-/* ------------------- ADD MENTEE TO GROUP ------------------- */
+// Mentee: Fetch his enrolled groups
+app.get("/api/mentee/groups/:userId", async (req, res) => {
+  try {
+    const groups = await Group.find({ mentees: req.params.userId }).populate("mentor", "name email");
+    res.json(groups);
+  } catch (error) {
+    res.status(500).json({ error: "Fetch failed" });
+  }
+});
 
+// Common: Fetch specific group details
+app.get("/api/groups/:groupId", async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId).populate("mentees", "email name");
+    res.json(group);
+  } catch (error) {
+    res.status(500).json({ error: "Group not found" });
+  }
+});
+
+// Mentor: Add Mentee to Group
 app.post("/api/groups/add-mentee", async (req, res) => {
   const { groupId, email } = req.body;
-
   try {
-    const user = await User.findOne({ email });
+    const student = await User.findOne({ email: email.toLowerCase() });
+    if (!student) return res.status(404).json({ error: "Mentee not found" });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    await Group.findByIdAndUpdate(groupId, {
-      $addToSet: { mentees: user._id },
-    });
-
+    await Group.findByIdAndUpdate(groupId, { $addToSet: { mentees: student._id } });
     res.json({ success: true });
-
   } catch (error) {
     res.status(500).json({ error: "Failed to add mentee" });
   }
 });
 
-/* ------------------- ADD RESOURCE ------------------- */
-
+// Mentor: Add Resource Link
 app.post("/api/groups/add-resource", async (req, res) => {
   const { groupId, title, url } = req.body;
-
   try {
-    const group = await Group.findById(groupId);
-
-    group.resources.push({ title, url });
-
-    await group.save();
-
+    await Group.findByIdAndUpdate(groupId, { $push: { resources: { title, url } } });
     res.json({ success: true });
-
   } catch (error) {
     res.status(500).json({ error: "Failed to add resource" });
   }
 });
 
-/* ------------------- ADD RESOURCE SEPARATE COLLECTION ------------------- */
+/* ------------------- CHAT PERSISTENCE (History) ------------------- */
 
-app.post("/api/mentor/add-resource", async (req, res) => {
-  const { title, url, groupId } = req.body;
-
+app.get("/api/chat-history/:groupId", async (req, res) => {
   try {
-    const resource = new Resource({
-      title,
-      url,
-      groupId,
-    });
-
-    await resource.save();
-
-    res.status(201).json(resource);
-
+    const history = await Chat.find({ groupId: req.params.groupId }).sort({ createdAt: 1 });
+    res.json(history);
   } catch (error) {
-    res.status(500).json({ error: "Failed to add resource" });
+    res.status(500).json({ error: "Failed to load chat history" });
   }
 });
 
-/* ------------------- SOCKET.IO GROUP CHAT ------------------- */
+/* ------------------- SOCKET.IO (Real-time) ------------------- */
 
 io.on("connection", (socket) => {
-
-  console.log("User connected:", socket.id);
+  console.log("🔌 User Connected:", socket.id);
 
   socket.on("join-group-chat", (groupId) => {
     socket.join(groupId);
+    console.log(`👤 User joined room: ${groupId}`);
   });
 
-  socket.on("send-group-message", ({ groupId, message, senderName }) => {
+  socket.on("send-group-message", async (data) => {
+    const { groupId, message, senderName } = data;
+    try {
+      // Create and Save to MongoDB
+      const newMessage = new Chat({
+        groupId,
+        sender: senderName,
+        text: message
+      });
+      const savedMsg = await newMessage.save();
 
-    io.to(groupId).emit("receive-group-message", {
-      text: message,
-      sender: senderName,
-      time: new Date().toLocaleTimeString(),
-    });
-
+      // Emit to everyone in the room (including sender)
+      io.to(groupId).emit("receive-group-message", savedMsg);
+    } catch (err) {
+      console.error("❌ Chat save error:", err);
+    }
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    console.log("🔌 User Disconnected");
   });
-
 });
 
 /* ------------------- START SERVER ------------------- */
-
-server.listen(5000, () => {
-  console.log("Server running on port 5000");
+const PORT = 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

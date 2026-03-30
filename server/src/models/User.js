@@ -1,25 +1,29 @@
 const mongoose = require("mongoose");
 
-const GroupSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  // This MUST be an ObjectId to match the User model's _id
-  mentor: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "User", 
-    required: true 
+const UserSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true, // Prevents two users from signing up with the same email
   },
-  mentees: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "User" 
-  }],
-  resources: [{ 
-    title: String, 
-    url: String 
-  }],
-  createdAt: { type: Date, default: Date.now },
+  password: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    required: true,
+    enum: ["MENTOR", "MENTEE"], // Ensures only these two specific roles can be saved
+  },
+  createdAt: { 
+    type: Date, 
+    default: Date.now 
+  }
 });
 
-// Check if models are already defined to prevent errors during hot-reloads
-const Group = mongoose.models.Group || mongoose.model("Group", GroupSchema);
+// Check if the model is already defined to prevent errors during server restarts/hot-reloads
+// (This is the same great practice you used in your Group.js file!)
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
-module.exports = { Group };
+// Exporting it wrapped in an object so that `const { User } = require("./models/User");` works perfectly
+module.exports = { User };
