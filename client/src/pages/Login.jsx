@@ -19,29 +19,32 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
+      // 2. Parse the JSON response
       const data = await response.json();
 
-      if (data.success) {
-        // 2. Save Session Data to LocalStorage
-        // We store these so other pages (like Dashboards) know who is logged in
+      // 3. response.ok checks if the status code is 200 (Success)
+      if (response.ok) {
+        // 4. Save Session Data to LocalStorage
+        // Notice we are targeting data.user now, which matches the backend!
         localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("userId", data.userId);
-        localStorage.setItem("userRole", data.role);
+        localStorage.setItem("userId", data.user._id); 
+        localStorage.setItem("userRole", data.user.role);
+        localStorage.setItem("userName", data.user.name); // Saved name for the dashboard UI
 
-        // 3. Role-Based Redirection
-        // Standardize to Uppercase to match the Backend Enum
-        const role = data.role.toUpperCase();
+        // 5. Role-Based Redirection
+        const role = data.user.role.toUpperCase();
 
         if (role === "MENTOR") {
-          navigate("/mentor-dashboard");
+          navigate("/mentor-dashboard"); 
         } else if (role === "MENTEE") {
-          navigate("/mentee-dashboard");
+          // Changed from a .jsx file path to a proper URL route
+          navigate("/mentee-dashboard"); 
         } else {
           setError("Authorized role not found. Contact Admin.");
         }
       } else {
-        // Handle "Invalid Credentials" sent by server
-        setError(data.message || "Invalid Email or Password");
+        // Handle "Invalid Credentials" sent by server (Status 401)
+        setError(data.error || "Invalid Email or Password");
       }
     } catch (err) {
       console.error("Login Error:", err);
@@ -113,7 +116,8 @@ const styles = {
     color: "#fff",
     border: "none",
     borderRadius: "4px",
-    cursor: "pointer"
+    cursor: "pointer",
+    fontWeight: "bold"
   },
   errorText: {
     color: "red",

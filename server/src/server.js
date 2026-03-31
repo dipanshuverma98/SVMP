@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
+const nodemailer = require("nodemailer"); // Added Nodemailer
 
 // Import Models
 const User = require("./models/User");
@@ -27,19 +28,71 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB (mentorship)"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-/* ------------------- AUTH ROUTES (Signup/Login) ------------------- */
+/* ------------------- EMAIL CONFIGURATION (OTP) ------------------- */
+// Temporary memory store for OTPs
+const otpStore = {}; 
 
-app.post("/api/auth/signup", async (req, res) => {
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: "muke45556@gmail.com", // 👈 REPLACE WITH YOUR GMAIL
+    pass: "owvq pbrj pnfs gvsu",    // 👈 REPLACE WITH YOUR 16-DIGIT APP PASSWORD
+  },
+});
+
+/* ------------------- AUTH ROUTES (OTP/Login) ------------------- */
+
+// 1. Send OTP Route (Replaces direct signup)
+app.post("/api/auth/send-otp", async (req, res) => {
+  const { email } = req.body;
+
+  // Generate a 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Save it temporarily (expires in 5 mins)
+  otpStore[email] = { otp, expiresAt: Date.now() + 5 * 60000 };
+
+  // Send the Email
   try {
-    const { name, email, password, role } = req.body;
-    const newUser = new User({ name, email, password, role: role.toUpperCase() });
-    await newUser.save();
-    res.status(201).json({ message: "User registered successfully" });
+    await transporter.sendMail({
+      from: "muke45556@gmail.com", // 👈 REPLACE WITH YOUR GMAIL
+      to: email,
+      subject: "Verify Your Mentorship Hub Account",
+      html: `<h3>Welcome!</h3><p>Your OTP for registration is: <strong>${otp}</strong></p><p>It will expire in 5 minutes.</p>`,
+    });
+    console.log(`✅ OTP sent to ${email}`);
+    res.json({ success: true, message: "OTP sent successfully" });
   } catch (error) {
-    res.status(500).json({ error: "Registration failed" });
+    console.error("❌ Nodemailer Error:", error);
+    res.status(500).json({ error: "Failed to send OTP email." });
   }
 });
 
+// 2. Verify OTP & Create Account Route
+app.post("/api/auth/verify-otp", async (req, res) => {
+  const { name, email, password, role, otp } = req.body;
+  const storedOtpData = otpStore[email];
+
+  if (!storedOtpData) return res.status(400).json({ error: "OTP not found or expired" });
+  if (storedOtpData.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
+  if (Date.now() > storedOtpData.expiresAt) return res.status(400).json({ error: "OTP has expired" });
+
+  try {
+    // OTP is correct! Create the actual user in the database now.
+    const newUser = new User({ name, email, password, role: role.toUpperCase() });
+    await newUser.save();
+    
+    // Clear the OTP from memory
+    delete otpStore[email];
+    
+    res.status(201).json({ success: true, message: "Account verified and created!" });
+  } catch (error) {
+    console.error("❌ MONGODB SAVE ERROR:", error);
+    res.status(500).json({ error: "Failed to create account in database" });
+  }
+});
+
+// 3. Login Route
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {

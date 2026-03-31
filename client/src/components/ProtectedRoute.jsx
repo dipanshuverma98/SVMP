@@ -3,21 +3,20 @@ import { Navigate, Outlet } from "react-router-dom";
 
 export default function ProtectedRoute({ allowedRole }) {
   const isAuthenticated = localStorage.getItem("isAuthenticated");
+  
+  // Get the role and force it to uppercase just to be incredibly safe
   const userRole = localStorage.getItem("userRole")?.toUpperCase();
 
-  // 1. If not logged in, go to login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 2. If a specific role is required (like MENTOR) and user doesn't have it
+  // If the user's role doesn't match the route's allowed role
   if (allowedRole && userRole !== allowedRole.toUpperCase()) {
-    // Check if they are authorized for the OTHER dashboard
-    // If they are a MENTEE trying to access a MENTOR-only route, send them to their own dashboard
-    const homePath = userRole === "MENTOR" ? "/mentor-dashboard" : "/mentee-dashboard";
-    return <Navigate to={homePath} replace />;
+    // Redirect them to their proper dashboard instead of kicking them out completely
+    return userRole === "MENTOR" ? <Navigate to="/mentor-dashboard" replace /> : <Navigate to="/mentee-dashboard" replace />;
   }
 
-  // 3. Otherwise, let them through
+  // If they pass the checks, let them see the page!
   return <Outlet />;
 }
