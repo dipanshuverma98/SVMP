@@ -211,6 +211,29 @@ io.on("connection", (socket) => {
       console.error("❌ Chat save error:", err);
     }
   });
+  // --- WEBRTC VIDEO CALL SIGNALING ---
+  
+  // 1. User A sends an offer to start a call
+  socket.on("video-offer", (data) => {
+    // Send the offer only to the other people in this specific group room
+    socket.to(data.groupId).emit("receive-video-offer", {
+      offer: data.offer,
+      callerId: socket.id,
+    });
+  });
+
+  // 2. User B answers the call
+  socket.on("video-answer", (data) => {
+    // Send the answer directly back to the person who called (User A)
+    io.to(data.callerId).emit("receive-video-answer", {
+      answer: data.answer,
+    });
+  });
+
+  // 3. Both users exchange network info to find the best connection path
+  socket.on("new-ice-candidate", (data) => {
+    socket.to(data.groupId).emit("receive-ice-candidate", data.candidate);
+  });
 
   socket.on("disconnect", () => {
     console.log("🔌 User Disconnected");
