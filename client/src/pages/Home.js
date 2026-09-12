@@ -11,7 +11,6 @@ const Home = () => {
         <div style={styles.navLinks}>
           <Link to="/login" style={styles.link}>Login</Link>
           <Link to="/signup" style={styles.link}>Sign Up</Link>
-          <Link to="/about" style={styles.link}>About Us</Link>
         </div>
       </nav>
 

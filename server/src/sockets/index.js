@@ -1,3 +1,4 @@
+const jwt = require("jsonwebtoken");
 const Message = require("../models/Message");
 
 module.exports = (io) => {

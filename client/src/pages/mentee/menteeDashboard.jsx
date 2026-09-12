@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
+import API_URL from "../../config";
 
 export default function MenteeDashboard() {
   const [groups, setGroups] = useState([]);
@@ -10,7 +11,7 @@ export default function MenteeDashboard() {
   useEffect(() => {
     const fetchMyGroups = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/mentee/groups/${userId}`);
+        const res = await fetch(`${API_URL}/api/mentee/groups/${userId}`);
         if (res.ok) {
           const data = await res.json();
           setGroups(data);

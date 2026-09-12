@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import API_URL from "../config";
 
 export default function VerifyOtp() {
   const [otp, setOtp] = useState("");
@@ -15,8 +16,7 @@ export default function VerifyOtp() {
     const role = localStorage.getItem("temp_role");
 
     try {
-      // 2. FIXED URL: Added /api/auth/ and sending all the data!
-      const response = await fetch("http://localhost:5000/api/auth/verify-otp", {
+      const response = await fetch(`${API_URL}/api/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password, role, otp }),

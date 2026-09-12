@@ -1,14 +1,17 @@
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
-const nodemailer = require("nodemailer"); // Added Nodemailer
+const nodemailer = require("nodemailer");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 // Import Models
 const User = require("./models/User");
 const { Group } = require("./models/Group");
-const Chat = require("./models/Chat"); // Ensure this file exists in models/
+const Chat = require("./models/Chat");
 
 const app = express();
 app.use(cors());
@@ -17,15 +20,16 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
     methods: ["GET", "POST"],
   },
 });
 
 /* ------------------- MONGODB CONNECTION ------------------- */
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/svmp";
 mongoose
-  .connect("mongodb://127.0.0.1:27017/mentorship")
-  .then(() => console.log("✅ Connected to MongoDB (mentorship)"))
+  .connect(MONGO_URI)
+  .then(() => console.log(`✅ Connected to MongoDB (${MONGO_URI})`))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
 /* ------------------- EMAIL CONFIGURATION (OTP) ------------------- */
@@ -35,57 +39,108 @@ const otpStore = {};
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "muke45556@gmail.com", // 👈 REPLACE WITH YOUR GMAIL
-    pass: "owvq pbrj pnfs gvsu",    // 👈 REPLACE WITH YOUR 16-DIGIT APP PASSWORD
+    user: process.env.EMAIL_USER || "muke45556@gmail.com",
+    pass: process.env.EMAIL_PASS || "mxet tnnx nqct lmgh",
   },
 });
 
 /* ------------------- AUTH ROUTES (OTP/Login) ------------------- */
 
-// 1. Send OTP Route (Replaces direct signup)
+// 1. Send OTP Route
 app.post("/api/auth/send-otp", async (req, res) => {
   const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
 
   // Generate a 6-digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   
-  // Save it temporarily (expires in 5 mins)
-  otpStore[email] = { otp, expiresAt: Date.now() + 5 * 60000 };
+  // Save temporarily (expires in 5 mins)
+  otpStore[normalizedEmail] = { otp, expiresAt: Date.now() + 5 * 60000 };
 
-  // Send the Email
   try {
-    await transporter.sendMail({
-      from: "muke45556@gmail.com", // 👈 REPLACE WITH YOUR GMAIL
-      to: email,
-      subject: "Verify Your Mentorship Hub Account",
-      html: `<h3>Welcome!</h3><p>Your OTP for registration is: <strong>${otp}</strong></p><p>It will expire in 5 minutes.</p>`,
-    });
-    console.log(`✅ OTP sent to ${email}`);
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      await transporter.sendMail({
+        from: `"SVMP" <${process.env.EMAIL_USER}>`,
+        to: normalizedEmail,
+        subject: "Verify Your Mentorship Hub Account",
+        html: `<h3>Welcome to SVMP!</h3><p>Your OTP for registration is: <strong>${otp}</strong></p><p>It will expire in 5 minutes.</p>`,
+      });
+      console.log(`✅ OTP email sent to ${normalizedEmail}`);
+    } else {
+      console.log(`⚠️ Email credentials not set. Simulated OTP for ${normalizedEmail}: ${otp}`);
+    }
     res.json({ success: true, message: "OTP sent successfully" });
   } catch (error) {
-    console.error("❌ Nodemailer Error:", error);
-    res.status(500).json({ error: "Failed to send OTP email." });
+    console.error("❌ Nodemailer Error:", error.message);
+    // In local dev/fallback if SMTP fails, allow user to continue in console
+    console.log(`ℹ️ Fallback for local testing - OTP for ${normalizedEmail}: ${otp}`);
+    res.json({ success: true, message: "OTP generated (check console if email failed)" });
   }
 });
 
 // 2. Verify OTP & Create Account Route
 app.post("/api/auth/verify-otp", async (req, res) => {
   const { name, email, password, role, otp } = req.body;
-  const storedOtpData = otpStore[email];
+  if (!email || !otp || !password || !name) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const storedOtpData = otpStore[normalizedEmail];
 
   if (!storedOtpData) return res.status(400).json({ error: "OTP not found or expired" });
-  if (storedOtpData.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
-  if (Date.now() > storedOtpData.expiresAt) return res.status(400).json({ error: "OTP has expired" });
+  if (String(storedOtpData.otp).trim() !== String(otp).trim()) {
+    return res.status(400).json({ error: "Invalid OTP" });
+  }
+  if (Date.now() > storedOtpData.expiresAt) {
+    delete otpStore[normalizedEmail];
+    return res.status(400).json({ error: "OTP has expired" });
+  }
 
   try {
-    // OTP is correct! Create the actual user in the database now.
-    const newUser = new User({ name, email, password, role: role.toUpperCase() });
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists with this email" });
+    }
+
+    // Hash password with bcrypt
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const userRole = (role || "mentee").toUpperCase();
+    const newUser = new User({ 
+      name, 
+      email: normalizedEmail, 
+      password: hashedPassword, 
+      role: userRole 
+    });
     await newUser.save();
     
-    // Clear the OTP from memory
-    delete otpStore[email];
+    // Clear OTP from memory
+    delete otpStore[normalizedEmail];
+
+    const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+    const token = jwt.sign(
+      { userId: newUser._id, role: newUser.role, name: newUser.name, email: newUser.email },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
     
-    res.status(201).json({ success: true, message: "Account verified and created!" });
+    res.status(201).json({ 
+      success: true, 
+      message: "Account verified and created!",
+      token,
+      user: {
+        _id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+      }
+    });
   } catch (error) {
     console.error("❌ MONGODB SAVE ERROR:", error);
     res.status(500).json({ error: "Failed to create account in database" });
@@ -95,11 +150,51 @@ app.post("/api/auth/verify-otp", async (req, res) => {
 // 3. Login Route
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
   try {
-    const user = await User.findOne({ email, password });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
-    res.json({ user });
+
+    // Verify password (supports bcrypt hash and plaintext fallback for legacy users)
+    let isMatch = false;
+    if (!user.password) {
+      // User record in database has no password set
+      return res.status(401).json({ error: "No password set for this account. Please re-register." });
+    }
+
+    if (user.password.startsWith("$2a$") || user.password.startsWith("$2b$")) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = (user.password === password);
+    }
+
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+    const token = jwt.sign(
+      { userId: user._id, role: user.role, name: user.name, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ 
+      success: true,
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      }
+    });
   } catch (error) {
+    console.error("❌ Login error:", error);
     res.status(500).json({ error: "Login error" });
   }
 });
@@ -173,6 +268,14 @@ app.post("/api/groups/add-resource", async (req, res) => {
   }
 });
 
+// In-memory active calls per groupId: { [groupId]: { hostId, hostName, startedAt, participants: [{ id, name, isMentor }] } }
+const activeCalls = {};
+
+app.get("/api/groups/:groupId/call-status", (req, res) => {
+  const { groupId } = req.params;
+  res.json(activeCalls[groupId] || { active: false });
+});
+
 /* ------------------- CHAT PERSISTENCE (History) ------------------- */
 
 app.get("/api/chat-history/:groupId", async (req, res) => {
@@ -192,51 +295,139 @@ io.on("connection", (socket) => {
   socket.on("join-group-chat", (groupId) => {
     socket.join(groupId);
     console.log(`👤 User joined room: ${groupId}`);
+    if (activeCalls[groupId]) {
+      socket.emit("call-status-changed", activeCalls[groupId]);
+    }
   });
 
   socket.on("send-group-message", async (data) => {
     const { groupId, message, senderName } = data;
     try {
-      // Create and Save to MongoDB
       const newMessage = new Chat({
         groupId,
         sender: senderName,
         text: message
       });
       const savedMsg = await newMessage.save();
-
-      // Emit to everyone in the room (including sender)
       io.to(groupId).emit("receive-group-message", savedMsg);
     } catch (err) {
       console.error("❌ Chat save error:", err);
     }
   });
-  // --- WEBRTC VIDEO CALL SIGNALING ---
+
+  // --- WEBRTC MULTI-PEER VIDEO CALL & ACTIVE CALL STATE ---
   
-  // 1. User A sends an offer to start a call
-  socket.on("video-offer", (data) => {
-    // Send the offer only to the other people in this specific group room
+  // 1. Group member starts or announces a call
+  socket.on("start-call", ({ groupId, userName, isMentor }) => {
+    if (!activeCalls[groupId]) {
+      activeCalls[groupId] = {
+        active: true,
+        groupId,
+        hostId: socket.id,
+        hostName: userName,
+        startedAt: new Date(),
+        participants: []
+      };
+    }
+    const call = activeCalls[groupId];
+    if (!call.participants.some(p => p.socketId === socket.id)) {
+      call.participants.push({ socketId: socket.id, userName, isMentor });
+    }
+    io.to(groupId).emit("call-status-changed", call);
+  });
+
+  // 2. Member joins the video room
+  socket.on("join-video-call", ({ groupId, userName, isMentor }) => {
+    socket.join(`call-${groupId}`);
+    socket.groupId = groupId;
+    socket.userName = userName;
+    socket.isMentor = isMentor;
+
+    if (!activeCalls[groupId]) {
+      activeCalls[groupId] = {
+        active: true,
+        groupId,
+        hostId: socket.id,
+        hostName: userName,
+        startedAt: new Date(),
+        participants: []
+      };
+    }
+
+    const call = activeCalls[groupId];
+    if (!call.participants.some(p => p.socketId === socket.id)) {
+      call.participants.push({ socketId: socket.id, userName, isMentor });
+    }
+
+    // Inform existing call participants that a new peer joined
+    socket.to(`call-${groupId}`).emit("peer-joined", {
+      peerId: socket.id,
+      userName,
+      isMentor
+    });
+
+    // Notify the entire group that call status has changed/active
+    io.to(groupId).emit("call-status-changed", call);
+
+    // Send the joining user the list of already connected peers
+    const existingPeers = call.participants.filter(p => p.socketId !== socket.id);
+    socket.emit("existing-peers", existingPeers);
+  });
+
+  // 3. Peer-to-Peer WebRTC Signaling
+  socket.on("signal-send", ({ to, signal, fromName }) => {
+    io.to(to).emit("signal-receive", {
+      from: socket.id,
+      signal,
+      fromName: fromName || socket.userName
+    });
+  });
+
+  // Backward-compatible direct offer/answer/candidate
+  socket.on("webrtc-offer", (data) => {
+    socket.to(data.groupId).emit("webrtc-offer", data.offer);
     socket.to(data.groupId).emit("receive-video-offer", {
       offer: data.offer,
       callerId: socket.id,
     });
   });
 
-  // 2. User B answers the call
-  socket.on("video-answer", (data) => {
-    // Send the answer directly back to the person who called (User A)
-    io.to(data.callerId).emit("receive-video-answer", {
-      answer: data.answer,
-    });
+  socket.on("webrtc-answer", (data) => {
+    if (data.groupId) socket.to(data.groupId).emit("webrtc-answer", data.answer);
+    if (data.callerId) io.to(data.callerId).emit("receive-video-answer", { answer: data.answer });
   });
 
-  // 3. Both users exchange network info to find the best connection path
-  socket.on("new-ice-candidate", (data) => {
-    socket.to(data.groupId).emit("receive-ice-candidate", data.candidate);
+  socket.on("webrtc-ice-candidate", (data) => {
+    const candidate = data.candidate || data;
+    socket.to(data.groupId).emit("webrtc-ice-candidate", candidate);
+    socket.to(data.groupId).emit("receive-ice-candidate", candidate);
+  });
+
+  // 4. Leave call
+  const leaveCurrentCall = (groupId) => {
+    if (!groupId || !activeCalls[groupId]) return;
+    const call = activeCalls[groupId];
+    call.participants = call.participants.filter(p => p.socketId !== socket.id);
+
+    socket.to(`call-${groupId}`).emit("peer-left", { peerId: socket.id });
+
+    if (call.participants.length === 0) {
+      delete activeCalls[groupId];
+      io.to(groupId).emit("call-status-changed", { active: false, groupId });
+    } else {
+      io.to(groupId).emit("call-status-changed", call);
+    }
+  };
+
+  socket.on("leave-video-call", ({ groupId }) => {
+    leaveCurrentCall(groupId || socket.groupId);
   });
 
   socket.on("disconnect", () => {
-    console.log("🔌 User Disconnected");
+    console.log("🔌 User Disconnected:", socket.id);
+    if (socket.groupId) {
+      leaveCurrentCall(socket.groupId);
+    }
   });
 });
 

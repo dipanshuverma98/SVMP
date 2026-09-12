@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import API_URL from "../config";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -13,7 +14,7 @@ export default function Login() {
 
     try {
       // 1. Call the Backend API
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -25,11 +26,14 @@ export default function Login() {
       // 3. response.ok checks if the status code is 200 (Success)
       if (response.ok) {
         // 4. Save Session Data to LocalStorage
-        // Notice we are targeting data.user now, which matches the backend!
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("userId", data.user._id); 
         localStorage.setItem("userRole", data.user.role);
-        localStorage.setItem("userName", data.user.name); // Saved name for the dashboard UI
+        localStorage.setItem("userName", data.user.name);
+        localStorage.setItem("userEmail", data.user.email);
 
         // 5. Role-Based Redirection
         const role = data.user.role.toUpperCase();
@@ -37,7 +41,6 @@ export default function Login() {
         if (role === "MENTOR") {
           navigate("/mentor-dashboard"); 
         } else if (role === "MENTEE") {
-          // Changed from a .jsx file path to a proper URL route
           navigate("/mentee-dashboard"); 
         } else {
           setError("Authorized role not found. Contact Admin.");

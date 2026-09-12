@@ -1,6 +1,7 @@
 import axios from "axios";
+import API_URL from "../config";
 
-const API = "http://localhost:5000/api/auth";
+const API = `${API_URL}/api/auth`;
 
 export const sendOtp = async (email) => {
   const res = await axios.post(`${API}/send-otp`, { email });
