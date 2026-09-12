@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getSocket } from "../services/socket";
 
@@ -22,7 +22,6 @@ export default function VideoCall() {
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
-  const [callActive, setCallActive] = useState(true);
 
   const userName = localStorage.getItem("userName") || "Anonymous";
   const userRole = localStorage.getItem("userRole")?.toUpperCase() || "USER";
