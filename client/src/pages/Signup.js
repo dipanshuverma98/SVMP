@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import API_URL from "../config";
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -12,7 +11,8 @@ export default function Signup() {
   const handleSignup = async (e) => {
     e.preventDefault();
     
-    const response = await fetch(`${API_URL}/api/auth/send-otp`, {
+    // FIXED URL: Added /api/auth/ to match your backend perfectly
+    const response = await fetch("http://localhost:5000/api/auth/send-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),

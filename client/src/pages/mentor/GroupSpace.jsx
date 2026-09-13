@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getSocket } from "../../services/socket";
-import API_URL from "../../config";
 
 export default function GroupSpace() {
   const { groupId } = useParams();
@@ -21,16 +20,16 @@ export default function GroupSpace() {
 
   const loadGroupAndChat = async () => {
     try {
-      const groupRes = await fetch(`${API_URL}/api/groups/${groupId}`);
+      const groupRes = await fetch(`http://localhost:5000/api/groups/${groupId}`);
       const groupData = await groupRes.json();
       if (groupRes.ok) setGroup(groupData);
 
-      const chatRes = await fetch(`${API_URL}/api/chat-history/${groupId}`);
+      const chatRes = await fetch(`http://localhost:5000/api/chat-history/${groupId}`);
       const chatData = await chatRes.json();
       if (chatRes.ok) setMessages(chatData);
 
       // Check current call status
-      const callRes = await fetch(`${API_URL}/api/groups/${groupId}/call-status`);
+      const callRes = await fetch(`http://localhost:5000/api/groups/${groupId}/call-status`);
       const callData = await callRes.json();
       if (callData && callData.active) {
         setActiveCall(callData);
@@ -80,7 +79,7 @@ export default function GroupSpace() {
   const handleAddMentee = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/api/groups/add-mentee`, {
+      const res = await fetch("http://localhost:5000/api/groups/add-mentee", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groupId, email: menteeEmail.trim() }),

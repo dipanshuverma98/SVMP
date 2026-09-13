@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar";
-import API_URL from "../../config";
 
 export default function GroupResources() {
   const { groupId } = useParams();
@@ -17,7 +16,7 @@ export default function GroupResources() {
 
   const loadGroup = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/groups/${groupId}`);
+      const res = await fetch(`http://localhost:5000/api/groups/${groupId}`);
       const data = await res.json();
       if (res.ok) setGroup(data);
     } catch (err) {
@@ -34,7 +33,7 @@ export default function GroupResources() {
     if (!resourceTitle.trim() || !resourceUrl.trim()) return;
 
     try {
-      const res = await fetch(`${API_URL}/api/groups/add-resource`, {
+      const res = await fetch("http://localhost:5000/api/groups/add-resource", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

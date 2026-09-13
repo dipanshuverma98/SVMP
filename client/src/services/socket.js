@@ -1,18 +1,17 @@
 import { io } from "socket.io-client";
-import API_URL from "../config";
 
 let socket = null;
 
 export const getSocket = () => {
   if (!socket) {
-    socket = io(API_URL);
+    socket = io("http://localhost:5000");
   }
   return socket;
 };
 
 export const connectSocket = (token) => {
   if (!socket) {
-    socket = io(API_URL, {
+    socket = io("http://localhost:5000", {
       auth: { token },
     });
   }

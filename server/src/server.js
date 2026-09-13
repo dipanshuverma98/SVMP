@@ -14,47 +14,23 @@ const { Group } = require("./models/Group");
 const Chat = require("./models/Chat");
 
 const app = express();
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
     methods: ["GET", "POST"],
   },
 });
 
 /* ------------------- MONGODB CONNECTION ------------------- */
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/svmp";
-let isDbConnected = false;
-
-const connectDB = async () => {
-  if (mongoose.connection.readyState >= 1) return;
-  try {
-    await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log(`✅ Connected to MongoDB`);
-  } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err.message);
-  }
-};
-
-// Initial connection for traditional/local server runs
-connectDB();
-
-// Middleware ensuring DB is connected before handling requests in serverless environments
-app.use(async (req, res, next) => {
-  if (mongoose.connection.readyState === 0) {
-    await connectDB();
-  }
-  next();
-});
+mongoose
+  .connect(MONGO_URI)
+  .then(() => console.log(`✅ Connected to MongoDB (${MONGO_URI})`))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
 /* ------------------- EMAIL CONFIGURATION (OTP) ------------------- */
 // Temporary memory store for OTPs
@@ -456,11 +432,7 @@ io.on("connection", (socket) => {
 });
 
 /* ------------------- START SERVER ------------------- */
-const PORT = process.env.PORT || 5000;
-if (process.env.NODE_ENV !== "test") {
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
-}
-
-module.exports = app;
+const PORT = 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
