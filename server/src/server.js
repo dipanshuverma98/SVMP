@@ -20,8 +20,14 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "https://svmp-delta.vercel.app",
+      /\.vercel\.app$/ // allows all vercel preview deployments as well
+    ],
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
