@@ -37,11 +37,14 @@ mongoose
 const otpStore = {}; 
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // uses SSL on port 465
   auth: {
-    user: process.env.EMAIL_USER || "muke45556@gmail.com",
-    pass: process.env.EMAIL_PASS || "mxet tnnx nqct lmgh",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
+  connectionTimeout: 5000, // stops hanging after 5 seconds if blocked
 });
 
 /* ------------------- AUTH ROUTES (OTP/Login) ------------------- */
