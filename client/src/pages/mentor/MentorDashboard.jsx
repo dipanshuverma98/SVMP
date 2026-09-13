@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar"; 
+import API_URL from "../../config";
 
 export default function MentorDashboard() {
   const [groups, setGroups] = useState([]);
@@ -10,7 +11,7 @@ export default function MentorDashboard() {
 
   const fetchGroups = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/mentor/groups/${mentorId}`);
+      const res = await fetch(`${API_URL}/api/mentor/groups/${mentorId}`);
       const data = await res.json();
       if (res.ok) setGroups(data);
     } catch (err) {
@@ -27,7 +28,7 @@ export default function MentorDashboard() {
     if (!newGroupName) return;
 
     try {
-      const res = await fetch("http://localhost:5000/api/mentor/create-group", {
+      const res = await fetch(`${API_URL}/api/mentor/create-group`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newGroupName, mentorId }),

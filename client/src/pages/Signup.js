@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import API_URL from "../config";
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -11,12 +12,12 @@ export default function Signup() {
   const handleSignup = async (e) => {
     e.preventDefault();
     
-    // FIXED URL: Added /api/auth/ to match your backend perfectly
-    const response = await fetch("http://localhost:5000/api/auth/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
+    try {
+      const response = await fetch(`${API_URL}/api/auth/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
     if (response.ok) {
       // Saving ALL details so the Verify page can use them to create the account
@@ -30,7 +31,10 @@ export default function Signup() {
     } else {
       alert("Failed to send OTP");
     }
-  };
+  } catch (err) {
+    alert("Network error: Could not connect to backend server. Make sure the backend is running and REACT_APP_API_URL is configured.");
+  }
+};
 
   return (
     <div style={{ padding: "40px", maxWidth: "400px", margin: "0 auto" }}>
