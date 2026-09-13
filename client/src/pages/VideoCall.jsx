@@ -22,7 +22,6 @@ export default function VideoCall() {
 
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
-  const [callActive, setCallActive] = useState(true);
 
   const userName = localStorage.getItem("userName") || "Anonymous";
   const userRole = localStorage.getItem("userRole")?.toUpperCase() || "USER";
